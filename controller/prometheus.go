@@ -33,7 +33,7 @@ func NewNodeInfo(stopCh <-chan struct{}) {
 
 type Nodes struct {
 	stop <-chan struct{}
-	lock sync.RWMutex
+	Lock sync.RWMutex
 
 	NodeMem map[string]*NodeMemory
 }
@@ -53,12 +53,14 @@ func (n *Nodes) run() {
 
 func (n *Nodes) flushOverdueNode() {
 	currentTime := time.Now()
+	n.Lock.Lock()
 	for k, v := range n.NodeMem {
 		if currentTime.Sub(v.CheckTime) >= NodeOverdueTime {
 			log.Infoln("节点 ", k, " 数据过期,从cache中删除,", " memoryValue:"+strconv.Itoa(v.Value)+"; checkTime:"+v.CheckTime.Format("2006-01-02 15:04:05")+";")
 			delete(n.NodeMem, k)
 		}
 	}
+	n.Lock.Unlock()
 
 	// updateMetrics
 	metrics.CacheSize.WithLabelValues().Set(float64(len(n.NodeMem)))
@@ -79,6 +81,9 @@ type PrometheusResult struct {
 
 func (n *Nodes) fromPrometheusGetMemData() {
 	startGetDataEvalTime := time.Now()
+	defer func() {
+		metrics.FromPrometheusGetDataEvaluationDuration.WithLabelValues().Observe(metrics.SinceInSeconds(startGetDataEvalTime))
+	}()
 	urlStr := conf.Conf.PrometheusUrl + "/api/v1/query?query=" + conf.Conf.PrometheusMemoryMetrics
 	urlParse, _ := url.Parse(urlStr)
 	q := urlParse.Query()
@@ -87,7 +92,7 @@ func (n *Nodes) fromPrometheusGetMemData() {
 
 	log.Debugln("从 prometheus 查询 node 内存信息,url: ", urlStr)
 
-	resp, err := util.GetResponse("GET", urlStr, "", "Content-Type=application/json", "", 5*time.Second, nil)
+	resp, err := util.GetResponse("GET", urlStr, "", "Content-Type=application/json", "", 30*time.Second, nil)
 	if err != nil {
 		metrics.FromPrometheusGetDataError.WithLabelValues().Inc()
 		log.Errorln("http 请求 prometheus 出错: ", err.Error())
@@ -113,19 +118,17 @@ func (n *Nodes) fromPrometheusGetMemData() {
 				log.Errorln("prometheus 结果转换错误: ", err.Error())
 			}
 			// 定时任务加锁更改
-			n.lock.Lock()
+			n.Lock.Lock()
 			n.NodeMem[v.Metric.Instance] = &NodeMemory{
 				NodeName:  v.Metric.Instance,
 				Value:     int,
 				CheckTime: currentTime,
 			}
-			n.lock.Unlock()
+			n.Lock.Unlock()
 		}
 	} else {
 		metrics.FromPrometheusGetDataError.WithLabelValues().Inc()
 		log.Errorln("prometheus 查询出错")
 	}
-
-	metrics.FromPrometheusGetDataEvaluationDuration.WithLabelValues().Observe(metrics.SinceInSeconds(startGetDataEvalTime))
 
 }

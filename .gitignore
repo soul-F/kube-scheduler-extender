@@ -5,6 +5,7 @@
 *.exe
 logs/*.log
 vendor
+tmp/
 
 bin
 /interpreter/interpreter

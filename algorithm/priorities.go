@@ -138,6 +138,8 @@ func CheckMemoryLoadPriorityMap(pod *v1.Pod, node v1.Node, nodeName string) (ext
 	//log.Debugf("开始执行优选 %v 算法,计算 node %v 得分", CheckMemoryLoadPriority, nodeName)
 	var score int64
 
+	controller.NodeInfo.Lock.RLock()
+	defer controller.NodeInfo.Lock.RUnlock()
 	if n, exist := controller.NodeInfo.NodeMem[nodeName]; exist {
 		score = int64((100 - n.Value) / 10)
 

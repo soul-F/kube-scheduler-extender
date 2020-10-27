@@ -39,8 +39,11 @@ func HealthCheck(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 }
 
 func Filter(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	metrics.PodSchedulePredicate.Inc()
 	startPredicateEvalTime := time.Now()
+	defer func() {
+		metrics.PodSchedulePredicate.Inc()
+		metrics.SchedulingAlgorithmPredicateEvaluationDuration.WithLabelValues().Observe(metrics.SinceInSeconds(startPredicateEvalTime))
+	}()
 	var buf bytes.Buffer
 	body := io.TeeReader(r.Body, &buf)
 	var extenderArgs schedulerapi.ExtenderArgs
@@ -53,13 +56,11 @@ func Filter(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	} else {
 		if conf.Conf.LogRequestBody {
 			b, _ := json.Marshal(extenderArgs)
-			log.Debugln(string(b))
+			log.Infoln(string(b))
 		}
 
 		extenderFilterResult = algorithm.Filter(extenderArgs)
 	}
-
-	metrics.SchedulingAlgorithmPredicateEvaluationDuration.WithLabelValues().Observe(metrics.SinceInSeconds(startPredicateEvalTime))
 
 	if response, err := json.Marshal(extenderFilterResult); err != nil {
 		log.Errorln("json 格式化 extenderFilterResult:", err)
@@ -73,8 +74,11 @@ func Filter(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 }
 
 func Prioritize(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	metrics.PodSchedulePriority.Inc()
 	startPriorityEvalTime := time.Now()
+	defer func() {
+		metrics.PodSchedulePriority.Inc()
+		metrics.SchedulingAlgorithmPriorityEvaluationDuration.WithLabelValues().Observe(metrics.SinceInSeconds(startPriorityEvalTime))
+	}()
 
 	var buf bytes.Buffer
 	body := io.TeeReader(r.Body, &buf)
@@ -86,14 +90,12 @@ func Prioritize(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	} else {
 		if conf.Conf.LogRequestBody {
 			b, _ := json.Marshal(extenderArgs)
-			log.Debugln(string(b))
+			log.Infoln(string(b))
 		}
 
 		hostPriorityList = algorithm.Prioritize(extenderArgs)
 
 	}
-
-	metrics.SchedulingAlgorithmPriorityEvaluationDuration.WithLabelValues().Observe(metrics.SinceInSeconds(startPriorityEvalTime))
 
 	if response, err := json.Marshal(hostPriorityList); err != nil {
 		log.Errorln("json 格式化 hostPriorityList:", err)

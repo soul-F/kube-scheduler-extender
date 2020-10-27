@@ -51,6 +51,7 @@ func Filter(args extender.ExtenderArgs) *extender.ExtenderFilterResult {
 		result.Error = "请查看policy配置,目前只支持 nodeCacheCapable: true"
 		return &result
 	}
+
 	numNodesToFind := len(*args.NodeNames)
 
 	log.Debugf("pod %v/%v 调度算法前,node 数量: %v, node 详情: %v", pod.Name, pod.Namespace, len(*args.NodeNames), strings.Join(*args.NodeNames, ","))
@@ -133,6 +134,8 @@ func CheckMemoryLoadPredicate(pod *v1.Pod, node v1.Node, nodeName string) (bool,
 	var failReasons []string
 
 	currentTime := time.Now()
+	controller.NodeInfo.Lock.RLock()
+	defer controller.NodeInfo.Lock.RUnlock()
 	if n, exist := controller.NodeInfo.NodeMem[nodeName]; exist {
 		// 节点内存大于调度阀值，并且检查时间小于节点数据失效时间,检查失败
 		if n.Value >= conf.Conf.PrometheusMemoryThreshold && currentTime.Sub(n.CheckTime) <= controller.NodeOverdueTime {

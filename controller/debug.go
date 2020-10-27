@@ -24,8 +24,10 @@ func ListenForSignal(stopCh <-chan struct{}) {
 				return
 			case <-ch:
 				log.Infof("当前prometheus_url: %v, prometheus_memory_metrics: %v, prometheus_memory_threshold: %v",
-					conf.Conf.PrometheusUrl,conf.Conf.PrometheusMemoryMetrics,conf.Conf.PrometheusMemoryThreshold)
+					conf.Conf.PrometheusUrl, conf.Conf.PrometheusMemoryMetrics, conf.Conf.PrometheusMemoryThreshold)
 				builder := strings.Builder{}
+
+				NodeInfo.Lock.RLock()
 				for nodeName, node := range NodeInfo.NodeMem {
 					builder.WriteString("\nnodeName:" + nodeName + "; memoryValue:" + strconv.Itoa(node.Value) + "; checkTime:" + node.CheckTime.Format("2006-01-02 15:04:05") + ";")
 				}
@@ -34,6 +36,7 @@ func ListenForSignal(stopCh <-chan struct{}) {
 				log.Infoln("cache node number: ", strconv.Itoa(len(NodeInfo.NodeMem)))
 				log.Infoln("node info: ", info)
 
+				NodeInfo.Lock.RUnlock()
 			}
 		}
 	}()

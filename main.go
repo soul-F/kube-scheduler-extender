@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"github.com/arl/statsviz"
 	"gopkg.in/alecthomas/kingpin.v2"
 	"kube-scheduler-extender/conf"
 	"kube-scheduler-extender/controller"
@@ -36,6 +37,13 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	controller.NewNodeInfo(ctx.Done())
+
+	go func() {
+		statsviz.RegisterDefault()
+		http.ListenAndServe(":8889", nil)
+	}()
+
+	log.Infoln("start up debug!, API server listening at http://localhost:8889/debug/statsviz/")
 
 	log.Infoln("start up kube-scheduler-extender!, API server listening at ", *listenAddress)
 	http.ListenAndServe(*listenAddress, routers.Router)
